@@ -1,17 +1,16 @@
-package com.HulkStore.ApiRest.DAO;
+package com.HulkStore.ApiRest.Service;
 
 import java.util.List;
 
-import com.HulkStore.ApiRest.Entity.History;
 import com.HulkStore.ApiRest.Entity.Product;
+import com.HulkStore.ApiRest.Entity.History;
 import com.HulkStore.ApiRest.Entity.CurrentStatus;
 
+public interface ProductService {
 
-public interface ProductDAO {
-	
 	List<CurrentStatus> findAllProducts();
 
-	void insertProduct(Product product, History history);
+	void insertProduct(CurrentStatus currentStatus);
 
 	void updateProduct(History history);
 

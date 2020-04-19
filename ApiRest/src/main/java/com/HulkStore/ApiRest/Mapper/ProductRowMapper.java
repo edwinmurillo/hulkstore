@@ -16,12 +16,12 @@ public class ProductRowMapper implements RowMapper<CurrentStatus> {
 		Product product = new Product();
 		History history = new History();
 		
-		product.setProductId(resultSet.getInt("employeeId"));
+		product.setProductId(resultSet.getInt("productId"));
 		product.setProductName(resultSet.getString("productName"));
 		product.setProductType(resultSet.getString("productType"));
 		product.setProductLabel(resultSet.getString("productLabel"));
 		
-		history.setProductId(resultSet.getInt("employeeId"));
+		history.setProductId(resultSet.getInt("productId"));
 		history.setProductPrice(resultSet.getInt("historyPrice"));
 		history.setProductQuantity(resultSet.getInt("historyQuantity"));
 		

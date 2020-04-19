@@ -3,12 +3,12 @@ package com.HulkStore.ApiRest.DAO;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCallback;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -25,66 +25,76 @@ import com.HulkStore.ApiRest.Mapper.ProductRowMapper;
 public class ProductDAOImplementation implements ProductDAO {
 
 
-	public ProductDAOImplementation(NamedParameterJdbcTemplate template) {  
+	public ProductDAOImplementation(NamedParameterJdbcTemplate template, JdbcTemplate updateTemplate) {  
         this.template = template;  
+        this.updateTemplate = updateTemplate;
 	}  
-	private static final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss");
-	NamedParameterJdbcTemplate template;  
+	NamedParameterJdbcTemplate template; 
+	JdbcTemplate updateTemplate;
 	
-
 	@Override
 	public List<CurrentStatus> findAllProducts() {
-		return template.query("select * from product JOIN", new ProductRowMapper());
+		return template.query(  "SELECT pro.productId, productName, productLabel, productType, historyPrice, subquerySum.historyQuantity\n" + 
+								"FROM (SELECT SUM(historyQuantity) as historyQuantity, productId\n" + 
+								"	 FROM history\n" + 
+								"	 GROUP BY productId\n" + 
+								"	) subquerySum\n" + 
+								"JOIN history ON subquerySum.productId = history.productId\n" + 
+								"JOIN product AS pro ON history.productId = pro.productId\n" + 
+								"WHERE pro.productArchive = false AND\n" + 
+								"	historyPrice = (SELECT historyPrice FROM history\n" + 
+								"					WHERE history.historyActivityDate = (SELECT MAX(history.historyActivityDate) FROM history\n" + 
+								"														 WHERE pro.productId = history.productId)\n" + 
+								"				  	)", new ProductRowMapper());
 	}
 	@Override
 	public void insertProduct(Product product, History history) {
-		final String sqlProduct = "insert into product(productId, productName, productType, productLabel) values(:productId, :productName, :productType, :productLabel)";
-		final String sqlHistory = "insert into history(productId, historyQuantity, historyActivityDate, historyPrice) values(:productId, :historyQuantity, :historyActivityDate, :historyPrice)";
+		final String sqlProduct = "insert into product(productId, productName, productType, productLabel, productArchive) " + 
+								  "values(:productId, :productName, :productType, :productLabel, :productArchive)";
+		
+		final String sqlHistory = "insert into history(productId, historyQuantity, historyActivityDate, historyPrice) " +
+								  "values(:productId, :historyQuantity, :historyActivityDate, :historyPrice)";
 
         KeyHolder holder = new GeneratedKeyHolder();
         SqlParameterSource productParameter = new MapSqlParameterSource()
         		.addValue("productId", product.getProductId())
 				.addValue("productName", product.getProductName())
 				.addValue("productType", product.getProductType())
-				.addValue("productLabel", product.getProductLabel());
-        template.update(sqlProduct,productParameter, holder);
+				.addValue("productLabel", product.getProductLabel())
+				.addValue("productArchive", false);
+        template.update(sqlProduct, productParameter, holder);
         
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
         
         SqlParameterSource historyParameter = new MapSqlParameterSource()
 				.addValue("productId", product.getProductId())
 				.addValue("historyQuantity", history.getProductQuantity())
-				.addValue("historyActivityDate", simpleDateFormat.format(timestamp))
+				.addValue("historyActivityDate", timestamp)
 				.addValue("historyPrice", history.getProductPrice());
-        template.update(sqlHistory,historyParameter, holder);
+        template.update(sqlHistory, historyParameter, holder);
 		
 	}
 	@Override
-	public void updateProduct(Product product, History history) {
-		final String sqlHistory = "insert into history(productId, historyQuantity, historyActivityDate, historyPrice) values(:productId, :historyQuantity, :historyActivityDate, :historyPrice)";
+	public void updateProduct(History history) {
+		final String sqlHistory = "insert into history(productId, historyQuantity, historyActivityDate, historyPrice)" + 
+								  "values(:productId, :historyQuantity, :historyActivityDate, :historyPrice)";
 		 
         KeyHolder holder = new GeneratedKeyHolder();
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
         
         SqlParameterSource historyParameter = new MapSqlParameterSource()
-				.addValue("productId", product.getProductId())
+				.addValue("productId", history.getProductId())
 				.addValue("historyQuantity", history.getProductQuantity())
-				.addValue("historyActivityDate", simpleDateFormat.format(timestamp))
+				.addValue("historyActivityDate", timestamp)
 				.addValue("historyPrice", history.getProductPrice());
-        template.update(sqlHistory,historyParameter, holder);
+        template.update(sqlHistory, historyParameter, holder);
 		
 	}
 	@Override
-	public void deleteProduct(Product product, History history) {
+	public void deleteProduct(Product product) {
 		
-		
-		final String sql = "update product set productArchived =: productArchived where productId =: productId";
-		 
-        KeyHolder holder = new GeneratedKeyHolder();
-        SqlParameterSource param = new MapSqlParameterSource()
-				.addValue("productId", product.getProductId())
-				.addValue("productArchived", false);
-        template.update(sql,param, holder);
+		final String sql = "UPDATE product SET productArchive = ? WHERE productId = ?";
+		updateTemplate.update(sql, true, product.getProductId());
 		
 	}
 	
